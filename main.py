@@ -1,6 +1,8 @@
 #!/usr/bin/python3 -u
 
 import serial
+from prometheus_client import start_http_server, Gauge
+
 
 lookup_crc_hi = [0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
                  0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0,
@@ -40,6 +42,13 @@ lookup_crc_lo = [0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x0
                  0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42, 0x43, 0x83, 0x41, 0x81, 0x80,
                  0x40]
 
+hoval1 = Gauge('hoval_v1', 'Hoval value 1')
+hoval2 = Gauge('hoval_v2', 'Hoval value 2')
+hoval3 = Gauge('hoval_v3', 'Hoval value 3')
+hoval4 = Gauge('hoval_v4', 'Hoval value 4')
+hoval5 = Gauge('hoval_v5', 'Hoval value 5')
+hoval6 = Gauge('hoval_v6', 'Hoval value 6')
+
 
 def calc_crc(message: bytes):
     crc_hi = 0xff
@@ -57,14 +66,20 @@ def calc_crc(message: bytes):
 
 
 if __name__ == '__main__':
-    ser = serial.Serial(port="/dev/ttyUSB2",
+    print("Hoval exporter v0.1\n")
+    server_port = 3525
+    serial_port = '/dev/ttyUSB2'
+
+    print("Serial port: " + serial_port)
+    print("Port       : " + str(server_port) + "\n")
+
+    start_http_server(server_port)
+    ser = serial.Serial(port=serial_port,
                         baudrate=19200,
                         bytesize=serial.EIGHTBITS,
                         parity=serial.PARITY_NONE,
                         stopbits=serial.STOPBITS_ONE,
                         timeout=0.1)
-
-    iteration = 0
 
     while True:
         msg = ser.read(512)
@@ -74,21 +89,24 @@ if __name__ == '__main__':
             func = msg[1]
 
             crc = calc_crc(msg[0:msg_length - 2])
-            checksum_ok = "--> ERROR! <--"
+            checksum_ok = False
             if msg[msg_length - 2] == crc[0] and msg[msg_length - 1] == crc[1]:
-                checksum_ok = "[OK]"
+                checksum_ok = True
+
+            if not checksum_ok:
+                break
 
             if func == 0x17:
                 payload = ":".join("{:02x}".format(b) for b in msg[11:11 + msg[10]])
-                print('Slave: {} - Read/Write: start_read={}, read_length={}, start_write={}, write_count={}, '
-                      'byte_count={}, bytes={} {}'.format(addr,
-                                                          int.from_bytes(msg[2:4], byteorder='big'),
-                                                          int.from_bytes(msg[4:6], byteorder='big'),
-                                                          int.from_bytes(msg[6:8], byteorder='big'),
-                                                          int.from_bytes(msg[8:10], byteorder='big'),
-                                                          msg[10],
-                                                          payload,
-                                                          checksum_ok))
+                # print('Slave: {} - Read/Write: start_read={}, read_length={}, start_write={}, write_count={}, '
+                #       'byte_count={}, bytes={} {}'.format(addr,
+                #                                           int.from_bytes(msg[2:4], byteorder='big'),
+                #                                           int.from_bytes(msg[4:6], byteorder='big'),
+                #                                           int.from_bytes(msg[6:8], byteorder='big'),
+                #                                           int.from_bytes(msg[8:10], byteorder='big'),
+                #                                           msg[10],
+                #                                           payload,
+                #                                           checksum_ok))
             elif func == 0x43:
                 count = msg[2]
                 v1 = msg[3]  # gauge value with overflow (lsb. msb is missing.)
@@ -98,11 +116,18 @@ if __name__ == '__main__':
                 clock_low_byte = msg[7]
                 v5 = msg[8]  # gauge value / temperature?
                 display_on_counter = msg[9]
-                v6 = msg[9]  # always 0x01 / device id?
+                v6 = msg[10]  # always 0x01 / device id?
                 # msg 10-18 byte sequence
                 payload = ":".join("{:02x}".format(b) for b in msg[3:3 + count])
-                print('Slave: {} - Hoval msg size={}, v1={}, v5={}, clock_low={}, display={}, payload={} {}'
-                      .format(addr, count, v1, v5, clock_low_byte, display_on_counter, payload,
-                              checksum_ok))
-            else:
-                print(";".join("{:>3}".format(b) for b in msg), checksum_ok)
+
+                hoval1.set(v1)
+                hoval2.set(v2)
+                hoval3.set(v3)
+                hoval4.set(v4)
+                hoval5.set(v5)
+                hoval6.set(v6)
+                # print('Slave: {} - Hoval msg size={}, v1={}, v5={}, clock_low={}, display={}, payload={} {}'
+                #       .format(addr, count, v1, v5, clock_low_byte, display_on_counter, payload,
+                #               checksum_ok))
+            # else:
+                # print(";".join("{:>3}".format(b) for b in msg), checksum_ok)
