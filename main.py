@@ -108,16 +108,16 @@ if __name__ == '__main__':
                 #                                           payload,
                 #                                           checksum_ok))
             elif func == 0x43:
-                count = msg[2]
-                v1 = msg[3]  # gauge value with overflow (lsb. msb is missing.)
-                v2 = msg[4]  # always 0x88 (136)
+                count = msg[2]  # Number of bytes in this message (always 16)
+                v1 = msg[3]  # outside temperature [0.01°] (lsb only!)
+                v2 = msg[4]  # always 0x88 or 0x89 (136/137) (msb of msg[6]?)
                 v3 = msg[5]  # always 0x06
-                v4 = msg[6]  # gauge value alternating +/- 50
-                clock_low_byte = msg[7]
-                v5 = msg[8]  # gauge value / temperature?
-                display_on_counter = msg[9]
+                v4 = msg[6]  # gauge value, fast alternating (lsb of msg[4]?)
+                clock_low_byte = msg[7]  # 14:32 Uhr -> Integer 1432 (lsb only!)
+                v5 = msg[8]  # water temperature ? [1°]
+                display_on_counter = msg[9]  # number of seconds until display=off (0..60s)
                 v6 = msg[10]  # always 0x01 / device id?
-                # msg 10-18 byte sequence
+                # msg 11-18 byte sequence
                 payload = ":".join("{:02x}".format(b) for b in msg[3:3 + count])
 
                 hoval1.set(v1)
